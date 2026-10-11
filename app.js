@@ -157,7 +157,7 @@ function addPR(k,t){const raw=$('#pv_'+k).value.trim(),date=$('#pd_'+k).value||i
  (S.prs[k]=S.prs[k]||[]).push({v,date});if(t==='w'){const h=S.prs[k].slice().sort((a,b)=>a.date.localeCompare(b.date));S.orm[k]=h[h.length-1].v}save();header();toast('PR saved — plan updated');go('board')}
 function delPR(k,d,v){if(!confirm('Delete this entry?'))return;const h=S.prs[k],i=h.findIndex(x=>x.date===d&&x.v===v);h.splice(i,1);const b=BOARD.find(x=>x[0]===k);if(b[2]==='w'&&h.length){S.orm[k]=h.slice().sort((a,b)=>a.date.localeCompare(b.date)).pop().v}save();go('board')}
 function go(v){S.view=v;document.querySelectorAll('nav button').forEach(b=>b.classList.toggle('on',b.dataset.v===v));R[v]();scrollTo(0,0)}
-document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{DOFF=0;go(b.dataset.v)});
+document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{DOFF=0;if(typeof FOFF!=='undefined')FOFF=0;go(b.dataset.v)});
 
 // ---- Logging ----
 function blank(p,ds){const d=ds?new Date(ds+'T12:00'):now();return{id:Date.now().toString(36),wk:p?p.week:null,date:iso(d),title:p?p.title:'Training session',key:p?.key||null,
@@ -190,5 +190,5 @@ function exportData(){const b=new Blob([JSON.stringify({app:'tacfit',v:1,exporte
  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=`tacfit-backup-${iso(now())}.json`;document.body.appendChild(a);a.click();a.remove()}
 function importData(f){if(!f)return;f.text().then(t=>{const j=JSON.parse(t),d=j.data||j;if(!Array.isArray(d.logs))throw 0;if(!confirm(`Import ${d.logs.length} workouts? This replaces current data.`))return;S=Object.assign({},def,d);save();header();go('today');toast('Backup restored')}).catch(()=>alert('Invalid backup file'))}
 
-checkRollover();header();go(S.rollCard?'today':'board');
+addEventListener('DOMContentLoaded',()=>{checkRollover();header();go(S.rollCard?'today':'board')});
 if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));

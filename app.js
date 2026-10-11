@@ -83,7 +83,7 @@ const R={
   <p class="mut">5-day: Mon Lower · Tue Push · Wed Run · Thu Full · Fri Conditioning. 4-day: Mon · Tue · Thu (+run intervals) · Sat.</p>
   <h2>Block</h2><div class="card"><label>Block start (week 1 Monday)</label><input type="date" value="${S.start}" onchange="S.start=iso(monday(new Date(this.value+'T00:00')));save();header()">
   <button class="btn sec sm" onclick="S.start=iso(monday(now()));S.block=(S.block||1)+1;save();header();go('settings');toast('Block restarted')">Start new block this week</button></div>
-  <h2>Backup</h2><div class="card"><button class="btn" onclick="exportData()">Export JSON</button><button class="btn sec" onclick="$('#imp').click()">Import JSON</button><input type="file" id="imp" accept="application/json,.json" hidden onchange="importData(this.files[0])">
+  <h2>App version</h2><div class="card"><b>TacFit ${APP_VERSION}</b><div class="mut">If this isn't the latest, close and reopen the app.</div></div><h2>Backup</h2><div class="card"><button class="btn" onclick="exportData()">Export JSON</button><button class="btn sec" onclick="$('#imp').click()">Import JSON</button><input type="file" id="imp" accept="application/json,.json" hidden onchange="importData(this.files[0])">
   <button class="btn del sm" onclick="if(confirm('Erase ALL data?')){localStorage.removeItem(K);S=load();header();go('settings')}">Reset all data</button></div>
   <p class="mut">Install: iPhone Safari → Share → Add to Home Screen. Android Chrome → menu → Install app. Works offline; data stays on this device — export backups regularly.</p>`}};
 
@@ -194,4 +194,7 @@ function exportData(){const b=new Blob([JSON.stringify({app:'tacfit',v:1,exporte
 function importData(f){if(!f)return;f.text().then(t=>{const j=JSON.parse(t),d=j.data||j;if(!Array.isArray(d.logs))throw 0;if(!confirm(`Import ${d.logs.length} workouts? This replaces current data.`))return;S=Object.assign({},def,d);save();header();go('today');toast('Backup restored')}).catch(()=>alert('Invalid backup file'))}
 
 addEventListener('DOMContentLoaded',()=>{checkRollover();header();go(S.rollCard?'today':'board')});
-if('serviceWorker'in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js'));
+const APP_VERSION='v7';
+if('serviceWorker'in navigator){let reloaded=false;const had=!!navigator.serviceWorker.controller;
+ navigator.serviceWorker.addEventListener('controllerchange',()=>{if(had&&!reloaded){reloaded=true;location.reload()}});
+ addEventListener('load',()=>navigator.serviceWorker.register('sw.js',{updateViaCache:'none'}).then(reg=>{if(!reg)return;reg.update();document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible')reg.update().catch(()=>{})})}).catch(()=>{}))}

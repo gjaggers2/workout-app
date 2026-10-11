@@ -33,33 +33,34 @@ const FOOD={
   {n:'Hard-boiled eggs & string cheese',d:'2 eggs, 2 string cheese',k:300,p:26,c:2,f:20,g:['Eggs ×2','String cheese ×2']},
   {n:'Chocolate milk',d:'16 oz low-fat chocolate milk',k:320,p:16,c:52,f:5,g:['Chocolate milk ×16 oz']}]};
 const SLOTS=[['b','Breakfast','breakfast'],['s1','Snack 1 · mid-morning','snack'],['l','Lunch','lunch'],['s2','Snack 2 · pre-workout / afternoon','snack'],['d','Dinner','dinner'],['s3','Snack 3 · post-workout / evening','snack']];
-function F(){S.fuel=S.fuel||{};const f=S.fuel;f.wt=f.wt||170;f.ht=f.ht||66;f.age=f.age||30;f.ppl=f.ppl||1;f.swaps=f.swaps||{};f.log=f.log||{};return f}
-function fuelTargets(){const f=F(),kg=f.wt/2.2046,cm=f.ht*2.54,bmr=10*kg+6.25*cm-5*f.age+5,tdee=bmr*1.55;
+function F(){S.fuel=S.fuel||{};const f=S.fuel;f.wt=f.wt||170;f.ht=f.ht||66;if(!f.bd)f.bd='1987-11-12';delete f.age;f.ppl=f.ppl||1;f.swaps=f.swaps||{};f.log=f.log||{};return f}
+function ageOf(bd){const t=now(),b=new Date(bd+'T12:00');let a=t.getFullYear()-b.getFullYear();if(t.getMonth()<b.getMonth()||(t.getMonth()==b.getMonth()&&t.getDate()<b.getDate()))a--;return a}
+function fuelTargets(){const f=F(),age=ageOf(f.bd),kg=f.wt/2.2046,cm=f.ht*2.54,bmr=10*kg+6.25*cm-5*age+5,tdee=bmr*1.55;
  const tr=f.trK||Math.round(tdee*1.08/50)*50,re=f.reK||Math.round(tdee*.93/50)*50,p=Math.round(f.wt*f.ppl);
- const mk=(k,fat)=>({k,p,f:fat,c:Math.round((k-p*4-fat*9)/4)});return{bmr:Math.round(bmr),tdee:Math.round(tdee),train:mk(tr,Math.round(f.wt*.4)),rest:mk(re,Math.round(f.wt*.45))}}
+ const mk=(k,fat)=>({k,p,f:fat,c:Math.round((k-p*4-fat*9)/4)});return{age,bmr:Math.round(bmr),tdee:Math.round(tdee),train:mk(tr,Math.round(f.wt*.4)),rest:mk(re,Math.round(f.wt*.45))}}
 function doy(d){return Math.floor((d-new Date(d.getFullYear(),0,0))/864e5)}
 function mealFor(d,slot,cat){const ds=iso(d),sw=(F().swaps[ds]||{})[slot]||0,L=FOOD[cat],off={b:0,s1:1,l:0,s2:3,d:0,s3:0}[slot];return{i:(doy(d)*(slot==='s1'?3:1)+off+sw)%L.length,L}}
 function dayMenu(d){const tr=!!dayPlan(d),out=[];SLOTS.forEach(([s,n,cat])=>{if(!tr&&s==='s2')return;let m=mealFor(d,s,cat);if(tr&&s==='s3'&&!F().swaps[iso(d)]?.s3)m={i:0,L:FOOD.snack};out.push({s,n,cat,m:m.L[m.i]})});return{tr,out}}
 let FOFF=0;
 R.fuel=function(){const f=F(),t=now(),d=addDays(t,FOFF),ds=iso(d),T=fuelTargets(),p=dayPlan(d),{tr,out}=dayMenu(d),tg=tr?T.train:T.rest;
  const sum=out.reduce((a,x)=>({k:a.k+x.m.k,p:a.p+x.m.p,c:a.c+x.m.c,f:a.f+x.m.f}),{k:0,p:0,c:0,f:0}),sc=tg.k/sum.k;
- const lg=f.log[ds]=f.log[ds]||{eat:{},water:0,bw:''};const ate=out.filter(x=>lg.eat[x.s]).reduce((a,x)=>a+x.m.k*sc,0);
+ const lg=f.log[ds]=f.log[ds]||{eat:{},water:0,bw:''};lg.skip=lg.skip||{};const sk=x=>lg.skipDay||lg.skip[x.s];const ate=out.filter(x=>lg.eat[x.s]&&!sk(x)).reduce((a,x)=>a+x.m.k*sc,0);
  const time=p?(p.key==='bjj'?'BJJ':'Training')+` day — ${esc(p.title)}`:'Rest day';
  V.innerHTML=`<div style="display:flex;gap:8px;align-items:center"><button class="btn sec" style="width:64px;margin:0" onclick="FOFF--;go('fuel')" aria-label="Previous day">◀</button><div style="flex:1;text-align:center"><b>${d.toLocaleDateString(undefined,{weekday:'long',month:'short',day:'numeric'})}</b><div class="mut">${time}</div></div><button class="btn sec" style="width:64px;margin:0" onclick="FOFF++;go('fuel')" aria-label="Next day">▶</button></div>${FOFF?`<button class="btn sec sm" onclick="FOFF=0;go('fuel')">Jump to Today</button>`:''}
  <div class="card" style="margin-top:12px"><span class="tag">${tr?'TRAINING DAY':'REST DAY'}</span><div class="row" style="text-align:center;margin-top:8px">
  <div><div class="ld" style="font-size:22px">${tg.k}</div><small class="mut">kcal</small></div><div><div class="ld" style="font-size:22px">${tg.p}g</div><small class="mut">protein</small></div><div><div class="ld" style="font-size:22px">${tg.c}g</div><small class="mut">carbs · ${tg.f}g fat</small></div></div>
  <div class="mut" style="margin-top:8px">Eaten so far: ~${Math.round(ate)} kcal (${Math.round(ate/tg.k*100)}%) · Portions below scaled ×${sc.toFixed(2)} to hit target</div></div>
  ${p?`<div class="card"><b>⏱ Workout fueling</b><div class="mut">Pre: Snack 2 (carbs + some protein) 60–90 min before; water 16 oz. Avoid heavy fat/fiber right before.<br>Post: Snack 3 shake + carbs within ~1–2 h, then a normal meal. Long run/hard bike or BJJ: add ~500 ml water per hour + pinch of salt.</div></div>`:''}
- <h2>Meals</h2>${out.map(x=>`<div class="card"><div style="display:flex;justify-content:space-between;gap:8px"><div><div class="mut">${x.n}</div><b>${esc(x.m.n)}</b></div>
+ <h2>Meals</h2>${lg.skipDay?`<div class="card" style="border-color:#d9a441"><b>Day plan skipped</b></div>`:''}<button class="btn sec sm" onclick="fuelSkipDay('${ds}')">${lg.skipDay?'↩ Restore day plan':'Skip whole day plan'}</button>${out.map(x=>`<div class="card" style="${sk(x)?'opacity:.45':''}"><div style="display:flex;justify-content:space-between;gap:8px"><div><div class="mut">${x.n}${sk(x)?' · SKIPPED':''}</div><b>${esc(x.m.n)}</b></div>
  <button class="seg" style="all:unset"><span class="tag" style="padding:12px 14px;font-size:15px;cursor:pointer" onclick="fuelEat('${ds}','${x.s}')">${lg.eat[x.s]?'✅':'⬜'}</span></button></div>
  <div class="mut" style="margin:6px 0">${esc(x.m.d)}</div><small>≈ ${Math.round(x.m.k*sc)} kcal · P ${Math.round(x.m.p*sc)} · C ${Math.round(x.m.c*sc)} · F ${Math.round(x.m.f*sc)}</small>
- <button class="btn sec sm" onclick="fuelSwap('${ds}','${x.s}')">⇄ Swap</button></div>`).join('')}
+ <div class="row2"><button class="btn sec sm" onclick="fuelSwap('${ds}','${x.s}')">⇄ Swap</button><button class="btn sec sm" onclick="fuelSkip('${ds}','${x.s}')">${lg.skip[x.s]?'↩ Unskip':'⨯ Skip'}</button></div></div>`).join('')}
  <h2>Daily check-in</h2><div class="card"><label>Water (cups of 8 oz) — goal ${tr?14:12}</label><div style="display:flex;gap:8px;align-items:center"><button class="btn sec" style="width:64px;margin:0" onclick="fuelWater('${ds}',-1)">−</button><b style="flex:1;text-align:center;font-size:24px">${lg.water}</b><button class="btn" style="width:64px;margin:0" onclick="fuelWater('${ds}',1)">+</button></div>
  <label>Bodyweight (lb)</label><input inputmode="decimal" value="${lg.bw}" placeholder="${f.wt}" onchange="F().log['${ds}'].bw=this.value;save()">
  ${bwTrend()}</div>
  <h2>This week's menu</h2><div class="card">${[0,1,2,3,4,5,6].map(i=>{const dd=addDays(monday(d),i),m=dayMenu(dd);return`<div class="pr"><span class="mut">${dd.toLocaleDateString(undefined,{weekday:'short'})}${m.tr?' 💪':''}</span><span style="text-align:right;font-size:13px">${m.out.filter(x=>x.cat!=='snack').map(x=>esc(x.m.n)).join(' · ')}</span></div>`}).join('')}</div>
  <h2>Grocery list (this week)</h2><div class="card">${grocery(d)}</div>
- <h2>Targets & settings</h2><div class="card"><div class="row"><div><label>Weight lb</label><input inputmode="decimal" value="${f.wt}" onchange="F().wt=+this.value||170;save();go('fuel')"></div><div><label>Height in</label><input inputmode="decimal" value="${f.ht}" onchange="F().ht=+this.value||66;save();go('fuel')"></div><div><label>Age</label><input inputmode="numeric" value="${f.age}" onchange="F().age=+this.value||30;save();go('fuel')"></div></div>
+ <h2>Targets & settings</h2><div class="card"><div class="row"><div><label>Weight lb</label><input inputmode="decimal" value="${f.wt}" onchange="F().wt=+this.value||170;save();go('fuel')"></div><div><label>Height in</label><input inputmode="decimal" value="${f.ht}" onchange="F().ht=+this.value||66;save();go('fuel')"></div><div><label>Birthdate (age ${T.age})</label><input type="date" value="${f.bd}" onchange="F().bd=this.value||'1987-11-12';save();go('fuel')"></div></div>
  <div class="row"><div><label>Train kcal</label><input inputmode="numeric" value="${T.train.k}" onchange="F().trK=+this.value||0;save();go('fuel')"></div><div><label>Rest kcal</label><input inputmode="numeric" value="${T.rest.k}" onchange="F().reK=+this.value||0;save();go('fuel')"></div><div><label>Protein g/lb</label><input inputmode="decimal" value="${f.ppl}" onchange="F().ppl=+this.value||1;save();go('fuel')"></div></div>
  <button class="btn sec sm" onclick="delete F().trK;delete F().reK;F().ppl=1;save();go('fuel')">Reset to calculated targets</button>
  <p class="mut">Estimate: BMR ≈ ${T.bmr} kcal (Mifflin-St Jeor) × 1.55 activity ≈ ${T.tdee} kcal maintenance. Training days ≈ +8%, rest days ≈ −7% (weekly avg ≈ maintenance + small surplus for lean gain). Protein ≈ 1 g/lb; fat ≈ 0.4–0.45 g/lb; carbs fill the rest (higher on training days). These are approximations — adjust by ~150–200 kcal if 2-week average bodyweight drifts more than ~1 lb from goal.</p>
@@ -71,3 +72,6 @@ function bwTrend(){const e=Object.entries(F().log).filter(([d,l])=>+l.bw).sort()
 function grocery(d){const m={};for(let i=0;i<7;i++){const dd=addDays(monday(d),i);dayMenu(dd).out.forEach(x=>x.m.g.forEach(g=>{const[k,q]=g.split(' ×');const r=q?q.match(/^([\d.½¼]+)\s*(.*)$/):null;const n=r?parseFloat(r[1].replace('½','.5').replace('¼','.25'))||({'½':.5,'¼':.25}[r[1]]):0;
  m[k]=m[k]||{n:0,u:r?r[2]:''};m[k].n+=n}))}
  return Object.keys(m).sort().map(k=>`<div class="pr"><span>${esc(k)}</span><span class="mut">${m[k].n?+m[k].n.toFixed(1)+' '+esc(m[k].u):'as needed'}</span></div>`).join('')+'<p class="mut">Totals are before portion scaling — buy ~10–20% extra on proteins/carbs.</p>'}
+
+function fuelSkip(ds,s){const l=F().log[ds];l.skip=l.skip||{};l.skip[s]=!l.skip[s];save();go('fuel')}
+function fuelSkipDay(ds){const l=F().log[ds];l.skipDay=!l.skipDay;save();go('fuel')}

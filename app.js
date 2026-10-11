@@ -51,7 +51,9 @@ const R={
   else if(past)body=`<div class="card"><b>${p?'Not logged':'Rest day'}</b>${p?'<div class="mut">Planned workout below</div>':''}</div>`+planCard(p,d);
   else body=planCard(p,d)+(logs.length?`<div class="card"><b>✔ Logged:</b> ${logs.map(l=>esc(l.title)).join(', ')}</div>`:'');
   const subBtn=p||sub?(sub?`<button class="btn sec sm" onclick="setSub('${ds}',0)">↩ Undo Jiu-Jitsu substitution</button>`:`<button class="btn sec sm" onclick="setSub('${ds}',1)">🥋 Substitute: Jiu-Jitsu</button>`):'';
-  V.innerHTML=(isT?rollCardHTML():'')+nav+body+`<button class="btn" onclick="startLog(${p?1:0},'${ds}')">${S.draft?'Resume Workout':p?(past?'Log This Day':'Start This Workout'):'Log Other Session'}</button>`+subBtn+(isT?weeklySummary():'')},
+  const skp=S.skips&&S.skips[ds]!=null;if(skp)body=`<div class="card" style="border-color:#d9a441"><b>⏭ Workout skipped</b>${S.skips[ds]?`<div class="mut">Reason: ${esc(S.skips[ds])}</div>`:''}<div class="mut">Lifts carry their last targets forward (not counted as missed).</div></div>`+body;
+  const skBtn=p?`<button class="btn sec sm" onclick="skipDay('${ds}')">${skp?'↩ Undo skip':'⏭ Skip workout'}</button>`:'';
+  V.innerHTML=(isT?rollCardHTML():'')+nav+body+`<button class="btn" onclick="startLog(${p?1:0},'${ds}')">${S.draft?'Resume Workout':p?(past?'Log This Day':'Start This Workout'):'Log Other Session'}</button>`+subBtn+skBtn+(isT?weeklySummary():'')},
  plan(){const m=monday(now());let h='<h2>This week</h2>';for(let i=0;i<7;i++){const d=new Date(m);d.setDate(m.getDate()+i);h+=`<div class="mut" style="margin-top:10px">${d.toLocaleDateString(undefined,{weekday:'long'})}</div>`+planCard(dayPlan(d),d)}
   h+=`<h2>4-week block</h2><div class="card">${WEEKS.map((w,i)=>`<div class="pr"><span>${w.n}</span><span class="ld">${w.main.s}x${w.main.r} @ ${Math.round(w.main.p*100)}%</span></div>`).join('')}<p class="mut">Main lifts load from your 1RMs. After week 4, retest or bump 1RMs (+5–10 lb lower, +5 lb upper) in Settings and repeat.</p></div>`;V.innerHTML=h},
  log(){if(!S.draft)S.draft=blank(null);const D=S.draft;
@@ -73,7 +75,7 @@ const R={
   const lifts=['squat','front','bench','press','deadlift','pushpress'];let h='<h2>Est. 1RM trend (Epley)</h2>';
   lifts.forEach(l=>{const pts=trend(l);const best=Math.max(0,...pts.map(p=>p.v));h+=`<div class="card"><div class="pr" style="border:0"><b>${BOARD.find(b=>b[0]===l)[1]}</b><span class="ld">${best?Math.round(best)+' '+S.unit:'—'}</span></div>${spark(pts)}</div>`});
   const pr=prs();h+=`<h2>PRs</h2><div class="card">${pr.length?pr.map(p=>`<div class="pr"><span>${esc(p[0])}</span><span class="ld">${p[1]}</span></div>`).join(''):'<span class="mut">Log workouts to see PRs.</span>'}</div>`;
-  h+=`<h2>History (${logs.length})</h2>`+(logs.map(l=>logCard(l)).join('')||'<p class="mut">No workouts yet.</p>');V.innerHTML=h},
+  h+=`<h2>History (${logs.length})</h2>`+([...logs.map(l=>[l.date,logCard(l)]),...Object.entries(S.skips||{}).map(([d,r])=>[d,`<div class="card" style="opacity:.7"><div class="mut">${d}</div><b>⏭ Skipped workout</b>${r?`<div class="mut">${esc(r)}</div>`:''}</div>`])].sort((x,y)=>y[0].localeCompare(x[0])).map(x=>x[1]).join('')||'<p class="mut">No workouts yet.</p>');V.innerHTML=h},
  settings(){V.innerHTML=`<h2>1-Rep Maxes (${S.unit})</h2><div class="card"><div class="row2">${Object.keys(S.orm).map(k=>`<div><label>${BOARD.find(b=>b[0]===k)[1]}</label><input inputmode="decimal" value="${S.orm[k]}" onchange="S.orm.${k}=+this.value||0;save();header()"></div>`).join('')}</div>
   <button class="btn sec sm" onclick="fromLogs()">Update from best est. 1RM in logs</button></div>
   <h2>Units</h2><div class="seg">${['lb','kg'].map(u=>`<button class="${S.unit===u?'on':''}" onclick="setUnit('${u}')">${u}</button>`).join('')}</div>
@@ -108,11 +110,11 @@ function autoreg(p,date){const deload=p.week===3,kg=S.unit==='kg';
   if(L.length){const b=L[0].bike;p.bikeLast=`${b.cal} cal${b.time?' / '+b.time:''}${b.intervals?' · '+b.intervals+' int':''}`;p.bikeTarget=`≥ ${+b.cal+Math.max(2,Math.round(b.cal*.05))} cal`}}}
 function weekStats(mon){const end=new Date(mon);end.setDate(end.getDate()+7);const L=S.logs.filter(l=>{const d=new Date(l.date+'T00:00');return d>=mon&&d<end});
  let vol=0,e1=0,pace=0,cal=0,dist=0,bj=0,bm=0;L.forEach(l=>{l.ex.forEach(e=>e.sets.forEach(s=>{vol+=(+s.w||0)*(+s.r||0);if(liftOf(e))e1=Math.max(e1,e1rm(s.w,s.r))}));
-  const sc=secs(l.run.time);if(+l.run.dist&&sc){const p=sc/l.run.dist;if(!pace||p<pace)pace=p;dist+=+l.run.dist}cal+=+l.bike.cal||0;if(l.bjj&&+l.bjj.min){bj++;bm+=+l.bjj.min}});return{n:L.length,vol,e1,pace,cal,dist,bj,bm}}
+  const sc=secs(l.run.time);if(+l.run.dist&&sc){const p=sc/l.run.dist;if(!pace||p<pace)pace=p;dist+=+l.run.dist}cal+=+l.bike.cal||0;if(l.bjj&&+l.bjj.min){bj++;bm+=+l.bjj.min}});const sk=Object.keys(S.skips||{}).filter(d=>{const x=new Date(d+'T00:00');return x>=mon&&x<end}).length;return{n:L.length,vol,e1,pace,cal,dist,bj,bm,sk}}
 function weeklySummary(){const m=monday(now()),pm=new Date(m);pm.setDate(m.getDate()-7);const a=weekStats(m),b=weekStats(pm);
  const ar=(x,y,low)=>!x||!y?'':(low?x<y:x>y)?'<span style="color:#9bb06b">▲</span>':x===y?'=':'<span style="color:#d9a441">▼</span>';
  const row=(n,x,y,f,low)=>`<div class="pr"><span>${n}</span><span><span class="mut">${y?f(y):'—'} →</span> <b>${x?f(x):'—'}</b> ${ar(x,y,low)}</span></div>`;const u=S.unit==='kg'?'km':'mi';
- return`<h2>This week vs last</h2><div class="card">${row('Sessions',a.n,b.n,v=>v)}${row('Volume ('+S.unit+')',a.vol,b.vol,v=>Math.round(v).toLocaleString())}${row('Best e1RM (main lifts)',a.e1,b.e1,v=>Math.round(v)+' '+S.unit)}${row('Best run pace',a.pace,b.pace,v=>fmtT(v)+'/'+u,1)}${row('Run distance',a.dist,b.dist,v=>(+v).toFixed(2)+' '+u)}${row('Echo Bike cals',a.cal,b.cal,v=>v)}${row('BJJ sessions',a.bj,b.bj,v=>v)}${row('BJJ minutes',a.bm,b.bm,v=>v)}</div>`}
+ return`<h2>This week vs last</h2><div class="card">${row('Sessions',a.n,b.n,v=>v)}${row('Volume ('+S.unit+')',a.vol,b.vol,v=>Math.round(v).toLocaleString())}${row('Best e1RM (main lifts)',a.e1,b.e1,v=>Math.round(v)+' '+S.unit)}${row('Best run pace',a.pace,b.pace,v=>fmtT(v)+'/'+u,1)}${row('Run distance',a.dist,b.dist,v=>(+v).toFixed(2)+' '+u)}${row('Echo Bike cals',a.cal,b.cal,v=>v)}${row('Skipped workouts',a.sk,b.sk,v=>v,1)}${row('BJJ sessions',a.bj,b.bj,v=>v)}${row('BJJ minutes',a.bm,b.bm,v=>v)}</div>`}
 function cmpHTML(p){return(p.runLast?`<div class="ex"><div><b>🏃 Run — last week</b><small>${p.runLast}</small><small style="color:#9bb06b;display:block">🎯 Beat: ${p.runTarget}</small></div></div>`:'')+(p.bikeLast?`<div class="ex"><div><b>🚴 Bike — last week</b><small>${p.bikeLast}</small><small style="color:#9bb06b;display:block">🎯 Beat: ${p.bikeTarget}</small></div></div>`:'')}
 
 // ---- Block rollover ----
@@ -163,6 +165,7 @@ document.querySelectorAll('nav button').forEach(b=>b.onclick=()=>{DOFF=0;if(type
 function blank(p,ds){const d=ds?new Date(ds+'T12:00'):now();return{id:Date.now().toString(36),wk:p?p.week:null,date:iso(d),title:p?p.title:'Training session',key:p?.key||null,
  cmp:p?{runLast:p.runLast,runTarget:p.runTarget,bikeLast:p.bikeLast,bikeTarget:p.bikeTarget}:{},ex:p?p.ex.map(e=>({name:e.name,lift:e.lift||null,ps:e.sets,pr:+e.reps||0,last:e.last||'',target:`${e.sets}x${e.reps}${e.load?' @ '+e.load+' '+S.unit:''}`+(e.target?' — '+e.target:''),sets:Array.from({length:e.sets},()=>({w:e.load||'',r:/^\d+$/.test(e.reps)||typeof e.reps==='number'?e.reps:''}))})):[],
  bjj:p&&p.key==='bjj'?{min:'60',type:'gi',rounds:'',rpe:'7'}:null,run:{dist:'',time:''},bike:{cal:'',time:'',intervals:''},notes:p&&p.key==='bjj'?'':p?p.cond.map(c=>c.d).join(' | '):''}}
+function skipDay(ds){S.skips=S.skips||{};if(S.skips[ds]!=null)delete S.skips[ds];else{const r=prompt('Skip workout — reason (optional):','');if(r===null)return;S.skips[ds]=r}save();toast('Updated');go('today')}
 function setSub(ds,on){S.subs=S.subs||{};if(on)S.subs[ds]='bjj';else delete S.subs[ds];save();toast(on?'Swapped for Jiu-Jitsu':'Substitution undone');go('today')}
 function startLog(has,ds){if(!S.draft){const d=ds?new Date(ds+'T12:00'):now();S.draft=blank(has?dayPlan(d):null,ds)}save();go('log')}
 function addSet(i){const s=S.draft.ex[i].sets,l=s[s.length-1]||{w:'',r:''};s.push({...l});save();go('log')}
